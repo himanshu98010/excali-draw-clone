@@ -1,5 +1,6 @@
 import express, { response } from "express";
 import jwt from "jsonwebtoken";
+import { prismaClient } from "@repo/db/client";
 const app = express();
 import {
   CreateRoomSchema,
@@ -8,19 +9,33 @@ import {
 } from "@repo/common/config";
 import { middleware } from "./middleware";
 import { JWT_SECRET } from "@repo/backend-common/config";
+app.use(express.json());
+app.post("/signup", async (req, res) => {
+  const parsedData = CreateUserSchema.safeParse(req.body);
 
-app.post("/signup", (req, res) => {
-  const data = CreateUserSchema.safeParse(req.body);
-  if (!data.success) {
+  if (!parsedData.success) {
     res.json({
       messege: "incorrect inputs",
     });
     return;
   }
   //db call
-  res.json({
-    userId: "123",
-  });
+  try {
+    await prismaClient.user.create({
+      data: {
+        email: parsedData.data.email,
+        password: parsedData.data.password,
+        name: parsedData.data.name,
+      },
+    });
+    res.json({
+      message: "signed up successfully",
+    });
+  } catch (e) {
+    res.status(408).json({
+      message: "user already exists with this email",
+    });
+  }
 });
 
 app.post("/signin", (req, res) => {
@@ -31,8 +46,12 @@ app.post("/signin", (req, res) => {
     });
     return;
   }
-  const token = jwt.sign({ data }, JWT_SECRET);
-
+  const user = prismaClient.user.findOne({
+    data,
+  });
+  if (user) {
+    const token = jwt.sign({ data }, JWT_SECRET);
+  }
   res.json({
     messege: "signed in successful",
   });
